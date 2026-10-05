@@ -10,6 +10,13 @@ CARGO ?= cargo
 PYTHON ?= python3
 VENV ?= .venv
 
+# The Python bindings are an `extension-module`: on macOS their Python symbols
+# are resolved when Python loads the module, so no test executable can link
+# them. They are verified by `make test-py` (maturin + pytest) instead, and
+# excluded from the cargo targets that link binaries. `clippy` and `doc` still
+# cover the crate, because neither links anything.
+RUST_EXCLUDE ?= --exclude lodestar-ann-py
+
 .DEFAULT_GOAL := help
 .PHONY: help setup build release test test-core test-index test-store test-py lint fmt fmt-check clippy doc wheel venv bench bench-full gate demo docker clean verify
 
@@ -19,16 +26,16 @@ help: ## Show this help
 
 setup: ## Install toolchain components and build everything once
 	rustup component add rustfmt clippy || true
-	$(CARGO) build --workspace --all-targets
+	$(CARGO) build --workspace --all-targets $(RUST_EXCLUDE)
 
 build: ## Debug build of the workspace
-	$(CARGO) build --workspace
+	$(CARGO) build --workspace $(RUST_EXCLUDE)
 
 release: ## Optimised build of the CLI and server
 	$(CARGO) build --release --bin lodestar
 
 test: ## Run every Rust test suite in the workspace
-	$(CARGO) test --workspace
+	$(CARGO) test --workspace $(RUST_EXCLUDE)
 
 test-core: ## Run only the core crate tests
 	$(CARGO) test -p lodestar-ann-core
@@ -45,7 +52,6 @@ test-py: venv ## Build the wheel and run the Python test suite
 	cd python && ../$(VENV)/bin/pytest -q
 
 lint: fmt-check clippy ## Run formatting and lint gates
-
 fmt: ## Format the workspace
 	$(CARGO) fmt --all
 
@@ -72,7 +78,7 @@ bench-full: ## Run the full benchmark suite including downloaded datasets
 	$(VENV)/bin/python bench/run.py --suite full
 
 gate: ## Recall regression gate used by CI
-	$(CARGO) test --release -p lodestar-ann-index --test recall_gate
+	$(CARGO) test --release -p lodestar-ann-index --test recall_gate -- --ignored --nocapture
 
 demo: ## Start the Docker demo on http://localhost:8080
 	docker compose up --build
