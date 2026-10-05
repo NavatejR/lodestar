@@ -466,9 +466,19 @@ impl Collection {
     pub fn flush(&mut self) -> Result<Option<SegmentInfo>> {
         let compacted = self.tail.compact()?;
         if compacted.is_empty() {
-            // Nothing to seal. The log can still be emptied: the tombstones it
-            // carried are already reflected in memory and are written to the
-            // manifest by the store path below when there is something to seal.
+            // Nothing to seal. The log may still carry delete records whose
+            // tombstones have no other durable record than the manifest's
+            // per-segment deleted lists, so those lists are written before the
+            // log is emptied. (A log of zero records means the manifest already
+            // names every tombstone.) Doing it in the other order would lose
+            // every delete of an id that lives only in sealed segments.
+            if !self.wal.is_empty() {
+                let mut manifest = self.manifest.clone();
+                manifest.write_deleted(&self.deleted);
+                manifest.updated_unix_ms = now_unix_ms();
+                manifest.store(&self.manifest_path)?;
+                self.manifest = manifest;
+            }
             self.wal.reset()?;
             return Ok(None);
         }
