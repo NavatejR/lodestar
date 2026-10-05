@@ -1,0 +1,25 @@
+[package]
+name = "lodestar-ann-store"
+description = "Crash-safe segment storage: mmap reader, write-ahead log, manifest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+crc32fast = "1.5.2"
+lodestar-ann-core.workspace = true
+lodestar-ann-index.workspace = true
+memmap2 = "0.9.11"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror = "2.0.21"
+
+[dev-dependencies]
+proptest = "1.11.0"
+tempfile = "3.27.0"

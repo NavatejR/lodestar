@@ -1,0 +1,23 @@
+[package]
+name = "lodestar-ann-server"
+description = "HTTP API and demo UI for Lodestar indexes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+axum = "0.8.9"
+lodestar-ann-core.workspace = true
+lodestar-ann-index.workspace = true
+lodestar-ann-store.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "signal", "net"] }
+tower-http = "0.7.1"
+tracing = "0.1.44"

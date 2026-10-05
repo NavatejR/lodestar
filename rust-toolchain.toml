@@ -1,0 +1,7 @@
+[toolchain]
+# `stable` rather than an exact version so that contributors are not forced into
+# a multi-hundred-megabyte toolchain download. CI pins the exact version tested
+# by the project (see .github/workflows/ci.yml).
+channel = "stable"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

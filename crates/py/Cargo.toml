@@ -1,0 +1,22 @@
+[package]
+name = "lodestar-ann-py"
+description = "Python bindings for Lodestar (PyO3 + NumPy)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+lodestar-ann-core.workspace = true
+lodestar-ann-index.workspace = true
+lodestar-ann-store.workspace = true
+numpy = "0.29.0"
+pyo3 = { version = "0.29.3", features = ["extension-module", "abi3-py39"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
