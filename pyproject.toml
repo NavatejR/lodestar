@@ -1,0 +1,46 @@
+# The Python project for Lodestar.
+#
+# This lives at the repository root rather than next to `crates/py/Cargo.toml`
+# on purpose: maturin adds the Python package files to the wheel by walking the
+# directory tree under this file, so `python-source = "python"` must point at a
+# path *below* it. `make build-py`, `make wheel` and `make test-py` pass
+# `--manifest-path crates/py/Cargo.toml` and maturin finds this file by walking
+# up from that manifest. The native module is `lodestar_native`; the importable
+# package is `python/lodestar`, whose `__init__.py` re-exports the extension.
+
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "lodestar-ann-py"
+version = "0.1.0"
+description = "Vector search from scratch: HNSW and IVF-PQ indexes with a crash-safe store"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT OR Apache-2.0"
+authors = [{ name = "Navatej Ratnan", email = "navatejratnanpersonal@gmail.com" }]
+keywords = ["ann", "vector-search", "hnsw", "similarity-search", "embeddings"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Database :: Database Engines/Servers",
+]
+
+[project.urls]
+Repository = "https://github.com/NavatejR/lodestar"
+Documentation = "https://github.com/NavatejR/lodestar#readme"
+Issues = "https://github.com/NavatejR/lodestar/issues"
+
+[tool.maturin]
+manifest-path = "crates/py/Cargo.toml"
+python-source = "python"
+# The extension is a submodule of the package rather than a top-level module:
+# maturin places it inside `python/lodestar/`, so the wheel ships one importable
+# package instead of a `.py` tree and a separate `.so` that could drift apart.
+module-name = "lodestar.lodestar_native"
+# abi3-py39 means one wheel covers every CPython from 3.9 up.
+features = ["pyo3/extension-module"]

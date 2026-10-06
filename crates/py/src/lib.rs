@@ -1,8 +1,8 @@
 //! Python bindings for Lodestar.
 //!
 //! The surface is deliberately a thin mirror of the Rust one: an
-//! [`Index`](PyIndex) holds vectors in memory for fast experimentation, a
-//! [`Collection`](PyCollection) persists to disk through the store layer, and
+//! `Index` holds vectors in memory for fast experimentation, a
+//! `Collection` persists to disk through the store layer, and
 //! both accept and return NumPy arrays without copying where possible.
 //!
 //! Build with `maturin develop` (see the Makefile's `test-py` target); the
@@ -67,13 +67,14 @@ impl PyIndex {
         if dim == 0 {
             return Err(PyValueError::new_err("dim must be at least 1"));
         }
-        let mut config = HnswConfig::default();
-        config.m = m;
-        config.m0 = m0;
-        config.ef_construction = ef_construction;
-        if let Some(value) = seed {
-            config.seed = value;
-        }
+        let defaults = HnswConfig::default();
+        let config = HnswConfig {
+            m,
+            m0,
+            ef_construction,
+            seed: seed.unwrap_or(defaults.seed),
+            ..defaults
+        };
         let inner = lodestar_ann_index::hnsw::Hnsw::new(dim, parse_metric(metric)?, config)
             .map_err(to_py)?;
         Ok(Self { inner, dim })

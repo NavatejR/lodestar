@@ -1,0 +1,14 @@
+# Build context hygiene: the image only COPYs Cargo.toml, Cargo.lock, crates/
+# and demo/entrypoint.sh, so everything else is bytes the daemon receives for
+# nothing — target/ and fuzz/target alone are measured in gigabytes.
+.git
+target
+fuzz
+dist
+.venv
+data
+benchmarks/results/raw
+**/__pycache__
+*.so
+*.pyd
+.DS_Store
