@@ -18,12 +18,22 @@
 //!
 //! # Id lookup
 //!
-//! The tail has an id map; sealed segments do not. Answering "does id X exist?"
-//! exactly would need an index over every sealed segment, and this build does
-//! not keep one. `insert`-style writes do not need it (they tombstone
-//! unconditionally), and neither does search, so the cost is a missing
-//! convenience rather than a missing capability — a limitation recorded here
-//! rather than papered over.
+//! The tail keeps a hash map from id to node. Sealed segments hold no such
+//! structure, so the collection keeps one sorted id vector per segment, built
+//! by scanning the segment's id column at open. It costs eight bytes per sealed
+//! node and buys three things:
+//!
+//! * a tombstone is recorded only against the segments that actually hold the
+//!   id, so [`Collection::live_len`] and [`CollectionStats::sealed_live`] are
+//!   exact rather than an under-count;
+//! * [`Collection::contains`] answers "is this id searchable?" in
+//!   `O(log n)` per segment, including the tail's own hash lookup;
+//! * a delete reports how many vectors it actually removed.
+//!
+//! An earlier revision tombstoned an id against every segment unconditionally,
+//! which is correct for search but makes the live-vector count too low —
+//! noticeably so after a restart, when the replay tombstones every replayed id
+//! against the sealed segments that never held it.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -57,6 +67,10 @@ pub struct CollectionStats {
     /// Nodes across sealed segments, tombstones included.
     pub sealed_nodes: usize,
     /// Live nodes across sealed segments, tombstones excluded.
+    ///
+    /// Exact: a tombstone is only recorded against a segment that holds the id.
+    /// Add `tail_live` for the whole collection, or use
+    /// [`Collection::live_len`].
     pub sealed_live: usize,
     /// Nodes in the in-memory tail.
     pub tail_nodes: usize,
@@ -72,6 +86,8 @@ pub struct CollectionStats {
     pub tail_bytes: usize,
     /// Highest populated level in the tail.
     pub tail_max_level: usize,
+    /// Heap bytes held by the id index over sealed segments.
+    pub id_index_bytes: usize,
 }
 
 /// A durable, searchable collection of vectors.
@@ -84,6 +100,9 @@ pub struct Collection {
     segments: Vec<Segment>,
     /// Ids hidden in each segment, parallel to `segments`.
     deleted: Vec<HashSet<u64>>,
+    /// Sorted external ids of the nodes in each segment, parallel to `segments`.
+    /// This is the index that makes tombstoning precise; see the module docs.
+    segment_ids: Vec<Vec<u64>>,
     /// Writes that are not part of a sealed segment yet.
     tail: Hnsw,
     wal: Wal,
@@ -126,6 +145,7 @@ impl Collection {
             config,
             segments: Vec::new(),
             deleted: Vec::new(),
+            segment_ids: Vec::new(),
             tail,
             wal,
         })
@@ -154,6 +174,7 @@ impl Collection {
 
         let mut segments = Vec::with_capacity(manifest.segments.len());
         let mut deleted = Vec::with_capacity(manifest.segments.len());
+        let mut segment_ids = Vec::with_capacity(manifest.segments.len());
         for reference in &manifest.segments {
             let segment = Segment::open(manifest.segment_path(&directory, reference))?;
             if segment.dim() != manifest.dim || segment.metric() != manifest.metric {
@@ -169,8 +190,17 @@ impl Collection {
                     ),
                 ));
             }
+            segment_ids.push(ids_of(&segment));
             segments.push(segment);
-            deleted.push(reference.deleted.iter().copied().collect::<HashSet<_>>());
+            let mut hidden: HashSet<u64> = reference.deleted.iter().copied().collect();
+            // A tombstone for an id the segment does not hold would make the
+            // live count wrong without hiding anything. Earlier revisions
+            // recorded one, so manifests from those builds are cleaned up here.
+            let Some(ids) = segment_ids.last() else {
+                continue;
+            };
+            hidden.retain(|id| ids.binary_search(id).is_ok());
+            deleted.push(hidden);
         }
 
         let config: HnswConfig = manifest.config.into();
@@ -180,10 +210,9 @@ impl Collection {
         let entries = crate::wal::replay_and_repair(&wal_path, manifest.dim)?;
         for entry in &entries {
             // Both operations hide any older copy: the new value lives in the
-            // tail, and the delete is a tombstone for everything sealed.
-            for set in &mut deleted {
-                set.insert(entry.id);
-            }
+            // tail, and the delete is a tombstone for the sealed segments that
+            // actually hold the id.
+            tombstone(&segment_ids, &mut deleted, entry.id);
             match &entry.op {
                 WalOp::Upsert(vector) => tail.insert(entry.id, vector)?,
                 WalOp::Delete => {
@@ -199,6 +228,7 @@ impl Collection {
             config,
             segments,
             deleted,
+            segment_ids,
             tail,
             wal,
         })
@@ -260,10 +290,39 @@ impl Collection {
 
     /// Number of searchable vectors: live nodes in the tail plus live,
     /// non-tombstoned nodes in sealed segments.
+    ///
+    /// Exact: tombstones are only ever recorded against segments that hold the
+    /// id, so a segment's live count minus its tombstone count is the number of
+    /// vectors in it that search still returns.
     #[must_use]
     pub fn live_len(&self) -> usize {
-        let sealed: usize = self
-            .segments
+        self.sealed_live() + self.tail.len()
+    }
+
+    /// Whether `id` is searchable.
+    ///
+    /// # Errors
+    ///
+    /// None; the signature is `bool` because the answer is a property of the
+    /// collection, not an operation that can fail.
+    #[must_use]
+    pub fn contains(&self, id: u64) -> bool {
+        if self.tail.contains(id) {
+            return true;
+        }
+        self.segment_ids.iter().enumerate().any(|(index, ids)| {
+            ids.binary_search(&id).is_ok() && !self.deleted[index].contains(&id)
+        })
+    }
+
+    /// Live, non-tombstoned nodes across sealed segments.
+    ///
+    /// A segment's own live flags say nothing about the tombstones this
+    /// collection has accrued since it was written, so they are subtracted
+    /// here. Without that, `stats()` would keep reporting a deleted vector as
+    /// live until the next compaction.
+    fn sealed_live(&self) -> usize {
+        self.segments
             .iter()
             .enumerate()
             .map(|(index, segment)| {
@@ -271,8 +330,7 @@ impl Collection {
                     .live_count()
                     .saturating_sub(self.deleted[index].len())
             })
-            .sum();
-        sealed + self.tail.len()
+            .sum()
     }
 
     /// Number of vectors buffered in the tail and not yet sealed.
@@ -364,21 +422,23 @@ impl Collection {
         Ok(ids.len())
     }
 
+    /// Hides any sealed copy of `id`.
+    fn tombstone(&mut self, id: u64) {
+        tombstone(&self.segment_ids, &mut self.deleted, id);
+    }
+
     /// Applies an upsert that is already in the log.
     fn apply_upsert(&mut self, id: u64, vector: &[f32]) -> Result<()> {
-        // Every existing segment may hold an older copy of this id.
-        for set in &mut self.deleted {
-            set.insert(id);
-        }
+        // Any sealed segment holding an older copy of this id must stop
+        // returning it; the new value lives in the tail.
+        self.tombstone(id);
         self.tail.insert(id, vector)?;
         Ok(())
     }
 
     /// Applies a delete that is already in the log.
     fn apply_delete(&mut self, id: u64) {
-        for set in &mut self.deleted {
-            set.insert(id);
-        }
+        self.tombstone(id);
         self.tail.delete(id);
     }
 
@@ -503,6 +563,7 @@ impl Collection {
         manifest.store(&self.manifest_path)?;
 
         let segment = Segment::open(&path)?;
+        self.segment_ids.push(ids_of(&segment));
         self.segments.push(segment);
         self.deleted.push(HashSet::new());
         self.manifest = manifest;
@@ -556,6 +617,7 @@ impl Collection {
             manifest.store(&self.manifest_path)?;
             self.segments.clear();
             self.deleted.clear();
+            self.segment_ids.clear();
             self.manifest = manifest;
             self.tail = rebuilt;
             self.wal.reset()?;
@@ -585,6 +647,7 @@ impl Collection {
             segment::remove_file_if_present(&self.directory.join(&reference.file))?;
         }
         let segment = Segment::open(&path)?;
+        self.segment_ids = vec![ids_of(&segment)];
         self.segments = vec![segment];
         self.deleted = vec![HashSet::new()];
         self.manifest = manifest;
@@ -618,7 +681,7 @@ impl Collection {
             metric: self.metric(),
             segments: self.segments.len(),
             sealed_nodes: self.segments.iter().map(Segment::len).sum(),
-            sealed_live: self.segments.iter().map(Segment::live_count).sum(),
+            sealed_live: self.sealed_live(),
             tail_nodes: self.tail.node_count(),
             tail_live: self.tail.len(),
             tombstoned_ids: tombstoned.len(),
@@ -626,6 +689,11 @@ impl Collection {
             mapped_bytes: self.segments.iter().map(Segment::mapped_bytes).sum(),
             tail_bytes: self.tail.memory_bytes(),
             tail_max_level: self.tail.max_level(),
+            id_index_bytes: self
+                .segment_ids
+                .iter()
+                .map(|ids| ids.len() * std::mem::size_of::<u64>())
+                .sum(),
         }
     }
 
@@ -639,6 +707,27 @@ impl Collection {
     #[must_use]
     pub fn segments(&self) -> Vec<SegmentInfo> {
         self.segments.iter().map(Segment::info).collect()
+    }
+}
+
+/// External ids of every node in a segment, sorted for binary search.
+///
+/// Duplicates cannot occur: a segment is written from an `Hnsw`, which replaces
+/// a vector when its id is written again.
+fn ids_of(segment: &Segment) -> Vec<u64> {
+    let mut ids: Vec<u64> = (0..segment.len() as u32)
+        .map(|node| segment.external_id(node))
+        .collect();
+    ids.sort_unstable();
+    ids
+}
+
+/// Records a tombstone against every segment that holds `id`.
+fn tombstone(segment_ids: &[Vec<u64>], deleted: &mut [HashSet<u64>], id: u64) {
+    for (index, ids) in segment_ids.iter().enumerate() {
+        if ids.binary_search(&id).is_ok() {
+            deleted[index].insert(id);
+        }
     }
 }
 

@@ -246,6 +246,7 @@ pub fn stats(root: &Path, name: &str, json: bool) -> Result<()> {
                 "wal_bytes": stats.wal_bytes,
                 "mapped_bytes": stats.mapped_bytes,
                 "tail_bytes": stats.tail_bytes,
+                "id_index_bytes": stats.id_index_bytes,
             })
         );
     } else {
@@ -265,6 +266,7 @@ pub fn stats(root: &Path, name: &str, json: bool) -> Result<()> {
         println!("wal bytes       {}", stats.wal_bytes);
         println!("mapped bytes    {}", stats.mapped_bytes);
         println!("tail heap bytes {}", stats.tail_bytes);
+        println!("id index bytes  {}", stats.id_index_bytes);
     }
     Ok(())
 }

@@ -197,3 +197,55 @@ fn a_vector_of_the_wrong_dimension_is_rejected() {
     assert!(collection.upsert_batch(&[1], &[1.0; DIM + 1]).is_err());
     assert!(collection.search(&[1.0; DIM - 1], 3, 16).is_err());
 }
+
+#[test]
+fn tombstones_are_recorded_only_where_the_id_lives() {
+    // A tombstone in a segment that never held the id hides nothing, but it
+    // used to subtract from the live count — most visibly after a restart,
+    // where replaying the log tombstoned every replayed id against every
+    // sealed segment. The counters must describe search, not bookkeeping.
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let mut collection = sealed_collection(root, "exact", 20);
+    assert_eq!(collection.stats().sealed_live, 20);
+
+    // Ids that exist only in the tail must not tombstone anything sealed.
+    for id in 100..110u64 {
+        collection.upsert(id, &vector_for(id)).unwrap();
+    }
+    assert_eq!(collection.live_len(), 30);
+    assert_eq!(collection.stats().sealed_live, 20);
+    assert_eq!(collection.stats().tombstoned_ids, 0);
+    assert_eq!(
+        collection.stats().id_index_bytes,
+        20 * std::mem::size_of::<u64>()
+    );
+
+    // Deleting an id that was never written changes nothing at all.
+    collection.delete(999).unwrap();
+    assert_eq!(collection.live_len(), 30);
+    assert_eq!(collection.stats().tombstoned_ids, 0);
+    assert!(!collection.contains(999));
+
+    // And the same has to hold across a reopen, which replays those writes.
+    drop(collection);
+    let collection = Collection::open(root, "exact").unwrap();
+    assert_eq!(collection.live_len(), 30, "replay must not hide anything");
+    assert_eq!(collection.stats().sealed_live, 20);
+    assert_eq!(collection.stats().tombstoned_ids, 0);
+
+    // Deleting a sealed id removes exactly one vector, and `contains` agrees.
+    let mut collection = collection;
+    assert!(collection.contains(7));
+    assert!(collection.contains(105), "tail ids are searchable");
+    collection.delete(7).unwrap();
+    assert_eq!(collection.live_len(), 29);
+    assert_eq!(collection.stats().sealed_live, 19);
+    assert_eq!(collection.stats().tombstoned_ids, 1);
+    assert!(!collection.contains(7));
+
+    // Deleting it again removes nothing further.
+    collection.delete(7).unwrap();
+    assert_eq!(collection.live_len(), 29);
+    assert!(!collection.contains(7));
+}
