@@ -113,7 +113,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - uses: taiki-e/install-action@cargo-fuzz
+      # Installed with cargo rather than a binary-install action: `cargo
+      # +nightly fuzz` must find the binary through the same PATH the inner
+      # cargo uses, and this is the invocation verified to provide that.
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
       # `+nightly` matters: rust-toolchain.toml pins stable, and cargo-fuzz
       # needs nightly. The env var rustup sets is inherited by the inner cargo,
       # so the whole build stays on nightly.

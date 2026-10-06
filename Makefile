@@ -19,7 +19,7 @@ RUST_EXCLUDE ?= --exclude lodestar-ann-py
 
 .DEFAULT_GOAL := help
 .PHONY: help setup build release test test-core test-index test-store test-server test-py \
-	lint fmt fmt-check clippy doc wheel venv build-py bench bench-quick bench-full gate \
+	lint fmt fmt-check clippy doc wheel venv numpy build-py bench bench-quick bench-full gate \
 	demo docker server clean verify
 
 help: ## Show this help
@@ -58,7 +58,7 @@ build-py: venv ## Build the Python extension into the local virtualenv
 	$(VENV)/bin/maturin develop --release --manifest-path crates/py/Cargo.toml
 
 test-py: build-py ## Build the wheel and run the Python test suite
-	$(VENV)/bin/pip install -q pytest
+	$(VENV)/bin/pip install -q pytest numpy
 	cd python && ../$(VENV)/bin/pytest -q
 
 lint: fmt-check clippy ## Run formatting and lint gates
@@ -78,19 +78,22 @@ wheel: venv ## Build the Python wheel into dist/
 	$(VENV)/bin/pip install -q maturin
 	$(VENV)/bin/maturin build --release --manifest-path crates/py/Cargo.toml --out dist
 
+numpy: venv ## Ensure the virtualenv has the packages the Python targets need
+	$(VENV)/bin/pip install -q numpy
+
 venv: ## Create the local Python virtual environment
 	@test -d $(VENV) || $(PYTHON) -m venv $(VENV)
 
 # Which suite `make bench` runs. CI overrides it on a manual dispatch.
 SUITE ?= standard
 
-bench: build-py ## Run the benchmark suite (override with `make bench SUITE=full`)
+bench: numpy build-py ## Run the benchmark suite (override with `make bench SUITE=full`)
 	$(VENV)/bin/python bench/run.py --suite $(SUITE)
 
-bench-full: build-py ## Run the full benchmark suite (200k vectors)
+bench-full: numpy build-py ## Run the full benchmark suite (200k vectors)
 	$(VENV)/bin/python bench/run.py --suite full
 
-bench-quick: build-py ## Smoke-test the benchmark harness in a few seconds
+bench-quick: numpy build-py ## Smoke-test the benchmark harness in a few seconds
 	$(VENV)/bin/python bench/run.py --suite quick
 
 gate: ## Recall regression gate used by CI
