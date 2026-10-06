@@ -30,7 +30,7 @@
 //! on every open: they are small, and a corrupt graph is much worse than a slow
 //! start. The vector block is checksummed too, but the check is *not* run on
 //! open: reading 256 MB of vectors at start-up would cost more than the mapping
-//! it validates. [`SegmentWriter`] writes the checksum into the footer and
+//! it validates. [`write_segment`] writes the checksum into the footer and
 //! [`crate::mapped::Segment::verify`] runs it when asked, which is what the CLI's
 //! `lodestar verify` command does.
 //!
@@ -101,7 +101,7 @@ pub struct Header {
     pub live: u64,
     /// Highest populated level.
     pub max_level: u32,
-    /// Entry point node, [`NO_ENTRY`] when the graph is empty.
+    /// Entry point node, `NO_ENTRY` when the graph is empty.
     pub entry: u32,
     /// Creation time, milliseconds since the Unix epoch.
     pub created_unix_ms: u64,

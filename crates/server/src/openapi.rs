@@ -82,6 +82,15 @@ pub fn document() -> Value {
                     "responses": { "200": { "description": "The OpenAPI document." } }
                 }
             },
+            "/demo": {
+                "get": {
+                    "tags": ["service"],
+                    "summary": "Console over this API",
+                    "description": "A single self-contained page: collections, search, maintenance and metrics. Needs no CDN and no separate container.",
+                    "operationId": "demo",
+                    "responses": { "200": { "description": "HTML." } }
+                }
+            },
             "/v1/index": {
                 "get": {
                     "tags": ["index"],
@@ -604,6 +613,7 @@ mod tests {
             "/healthz",
             "/metrics",
             "/docs",
+            "/demo",
             "/openapi.json",
             "/v1/index",
             "/v1/index/{name}",

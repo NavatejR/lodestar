@@ -12,6 +12,7 @@
 //! | `GET` | `/healthz` | liveness, version, selected SIMD kernel |
 //! | `GET` | `/metrics` | Prometheus text exposition |
 //! | `GET` | `/docs` | self-contained documentation page |
+//! | `GET` | `/demo` | console over the API, compiled into the binary |
 //! | `GET` | `/openapi.json` | OpenAPI 3.0 description |
 //! | `GET` | `/v1/index` | list collections |
 //! | `PUT` | `/v1/index/{name}` | create a collection |
@@ -104,6 +105,7 @@ pub fn router_with_cors(state: AppState, cors: Option<CorsLayer>) -> Router {
         .route("/healthz", get(handlers::healthz))
         .route("/metrics", get(handlers::metrics))
         .route("/docs", get(handlers::docs))
+        .route("/demo", get(handlers::demo_page))
         .route("/openapi.json", get(handlers::openapi_document))
         .route("/v1/index", get(handlers::list_indexes))
         .route(

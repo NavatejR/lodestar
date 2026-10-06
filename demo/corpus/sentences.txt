@@ -1,0 +1,95 @@
+# The demo corpus: `group: sentence`, one per line.
+#
+# The group becomes metadata on the vector, which is what the filter box in the
+# console filters on — try `group == news AND score >= 0.8`. Everything here is
+# written to be semantically close to a few other lines and far from the rest,
+# so a search visibly ranks rather than merely returns.
+
+# --- vector search -----------------------------------------------------------
+search: Approximate nearest neighbour search trades a little recall for a large speed-up by not visiting every vector.
+search: An HNSW graph is navigable because every node links to a handful of nearby nodes on several layers.
+search: HNSW starts at a random entry point and greedily descends through layers until it reaches the bottom.
+search: The ef_construction parameter decides how many candidates are considered while inserting one vector.
+search: Raising ef_search at query time increases recall and latency together, which is the trade-off to tune.
+search: A graph index beats brute force when the corpus is too large to scan on every query.
+search: Small world graphs let a search hop across the corpus in a logarithmic number of steps.
+search: Recall is measured against an exact search, because a number without an oracle means nothing.
+search: Filtering during traversal can empty a candidate list, so a graph index needs a way to keep walking.
+search: Quantization shrinks the vectors so more of them fit in cache, at the cost of some ranking accuracy.
+search: Product quantization splits a vector into subvectors and learns a codebook for each part.
+search: Asymmetric distance comparison scores a query against compressed codes without decompressing them.
+search: Inverted file search clusters the corpus first and only searches the clusters closest to the query.
+search: A rerank pass restores accuracy by recomputing exact distances for the best compressed candidates.
+search: Vector search ranks items by distance in an embedding space rather than by keyword match.
+search: Semantic search finds passages that mean the same thing even when they share no words.
+
+# --- storage -----------------------------------------------------------------
+storage: A write-ahead log records every mutation before it is applied, so a crash cannot lose an acknowledged write.
+storage: Sealing the in-memory tail into a segment turns an append-only file into a memory-mapped one.
+storage: Memory mapping lets the operating system page vectors in on demand instead of loading them all.
+storage: A checksum in the footer detects a segment that was truncated or written by a torn flush.
+storage: Compaction rewrites the live vectors and drops tombstones so searches do not pay for deleted rows.
+storage: Tombstones mark a vector as deleted without moving the bytes that follow it.
+storage: A manifest lists the segments, the deleted ids and the format version of a collection.
+storage: Replaying the log after a crash rebuilds the state that was in memory when the process died.
+storage: Atomic rename is how a file swap becomes all-or-nothing on a filesystem that promises little.
+storage: Durability is a property of the fsync, not of the write returning success.
+storage: Copy-on-write structures make a snapshot as cheap as a pointer swap.
+storage: Column layout keeps vectors contiguous so a scan reads sequentially instead of chasing pointers.
+storage: Every segment is immutable once sealed, which makes recovery a matter of reading, not repairing.
+
+# --- rust --------------------------------------------------------------------
+rust: Ownership lets the compiler prove that no reference outlives the data it points at.
+rust: Zero-cost abstractions mean the fast path is also the one you would have written by hand.
+rust: A crate that cannot leak unsafe code is easier to trust than one that can.
+rust: Traits let a distance kernel be generic over the metric without paying for a dynamic call.
+rust: Cargo builds the workspace, runs the tests and pins every dependency in one lockfile.
+rust: The borrow checker complains loudly during development so the program does not complain at runtime.
+rust: Iterator adapters fuse and inline, so map and filter over a slice compile to a tight loop.
+rust: Serde derives a serializer for a struct without writing any marshalling code.
+rust: Rayon gives data parallelism by changing map into par_iter and little else.
+rust: A memory-mapped file is just a slice the operating system fills in on demand.
+rust: Clippy lints the code the way a careful reviewer would, before the reviewer sees it.
+rust: Miri executes the test suite against a model of the machine and flags undefined behaviour.
+
+# --- machine learning --------------------------------------------------------
+ml: An embedding model maps text or images into a dense vector where distance means similarity.
+ml: Normalising embeddings makes euclidean distance and cosine similarity agree with each other.
+ml: A reranker reads the candidate passages with a cross-encoder and orders them far more accurately.
+ml: Retrieval augmented generation grounds a language model in documents fetched at query time.
+ml: Chunking decides what a passage is before anything is embedded, so it decides what can be found.
+ml: Training an index on the same corpus you evaluate on measures memorisation, not search quality.
+ml: Dimensionality reduction trades resolution for speed and for a smaller index on disk.
+ml: A held-out query set keeps the recall numbers from being a measure of the training data.
+ml: Warm-up matters because the first query pays for page faults that later queries do not.
+ml: Drift in the embedding model quietly invalidates an index built with the previous version.
+ml: Evaluation needs a baseline, and brute force over the corpus is the honest one.
+ml: A nearest neighbour oracle is just exact search, run slowly, to check the fast path against.
+
+# --- operations --------------------------------------------------------------
+ops: A p99 latency tells you what the unlucky user experiences, and the mean hides them.
+ops: Graceful shutdown stops accepting connections and finishes the requests already running.
+ops: Prometheus text exposition is a plain list of counters that any scraper can read.
+ops: A health endpoint should answer from liveness, not from a dependency that may be briefly down.
+ops: Read-only mode lets an operator take the write path away without taking the service down.
+ops: Structured logs with a request id are the difference between debugging and guessing.
+ops: A container image with no toolchain in it is smaller and has less to patch.
+ops: Backups are only real once a restore has been rehearsed end to end.
+ops: Rolling a version forward is easy; the plan for rolling it back is the part teams skip.
+ops: Capacity planning starts with measuring how much one shard actually serves.
+ops: A crash test that kills the process at random points finds bugs no assertion does.
+ops: Metrics with no dashboard are just numbers waiting for an incident.
+
+# --- news --------------------------------------------------------------------
+news: The team shipped a v1 release of the search service with an HTTP API and a browser console.
+news: A local-first setup now runs the whole demo in a container without a network connection.
+news: The new benchmark report publishes recall, latency and throughput for two corpus sizes.
+news: Vector databases kept consolidating as teams chose open source engines they could operate themselves.
+news: The release notes call out a fix for deletes that did not survive a restart.
+news: Search teams are moving evaluation pipelines into continuous integration to catch recall regressions.
+news: A new recall gate now fails the build when index quality drops below the calibrated floor.
+news: The project added fuzz targets for the segment and log readers ahead of the first stable release.
+news: Embedded models got smaller this year, which put semantic search on ordinary laptops.
+news: The maintainers published an architecture decision record explaining the segment format.
+news: Benchmarks on consumer hardware became a talking point as inference costs fell.
+news: The console now shows the active SIMD kernel and per-collection segment counts.

@@ -1,0 +1,83 @@
+# The Lodestar demo stack.
+#
+#   docker compose -f demo/docker-compose.yml up --build
+#   open http://localhost:8080/demo
+#
+# Two services always run: `seed` fills a fresh volume with a synthetic
+# collection (once), then `lodestar` serves it. The `ollama` profile is opt-in:
+#
+#   docker compose -f demo/docker-compose.yml --profile ollama up --build
+#
+# which additionally starts a local Ollama and embeds a bundled sentence corpus
+# into a second collection, so the search box has real text to work with.
+
+name: lodestar
+
+services:
+  # One-shot: seeds the volume if — and only if — it is empty. Re-running
+  # compose must not append another 20k vectors to the same collection, so the
+  # guard is the manifest rather than an entry in some state file.
+  seed:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
+    image: lodestar:dev
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ -f /data/demo/manifest.json ]; then
+          echo "demo collection already present, skipping"
+        else
+          lodestar sample demo --root /data --count 20000 --dim 128 --clusters 64 --seed 7
+        fi
+    volumes:
+      - lodestar-data:/data
+
+  lodestar:
+    image: lodestar:dev
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    volumes:
+      - lodestar-data:/data
+    environment:
+      LODESTAR_ROOT: /data
+      LODESTAR_ADDR: ":8080"
+      # The demo console is served from the same origin, so this only widens
+      # access for local tools (curl, the Python bindings, a notebook).
+      LODESTAR_CORS: "*"
+      LODESTAR_LOG: info
+
+  # --- optional: real text, real embeddings, nothing leaves this machine ------
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  # Pulls the embedding model, embeds demo/corpus/sentences.txt and upserts the
+  # result into a `docs` collection. Python with a stdlib-only script: no
+  # packages, no lockfile, nothing to audit.
+  embed:
+    profiles: ["ollama"]
+    image: python:3.12-slim
+    depends_on:
+      lodestar:
+        condition: service_started
+      ollama:
+        condition: service_started
+    volumes:
+      - ./corpus:/corpus:ro
+    command:
+      - /bin/sh
+      - -c
+      - "python /corpus/embed.py --server http://lodestar:8080 --ollama http://ollama:11434"
+
+volumes:
+  lodestar-data:
+  ollama-models:

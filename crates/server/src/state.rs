@@ -500,6 +500,61 @@ impl AppState {
         ))
     }
 
+    /// Opens every collection that has appeared under the root since start-up.
+    ///
+    /// The CLI, the Python bindings and this service read the same data
+    /// directory, so a collection one of them created is not visible here until
+    /// something asks for it. Listing the collections is that moment: this
+    /// scans the root and opens whatever is new, and it is idempotent.
+    ///
+    /// A collection that cannot be opened is logged and skipped rather than
+    /// failing the listing: the service must keep serving the collections it
+    /// does have.
+    ///
+    /// # Returns
+    ///
+    /// How many collections were newly opened.
+    pub fn refresh(&self) -> usize {
+        let entries = match std::fs::read_dir(&self.inner.root) {
+            Ok(entries) => entries,
+            Err(error) => {
+                tracing::warn!(root = %self.inner.root.display(), %error, "could not scan the data root");
+                return 0;
+            }
+        };
+        let mut opened = 0usize;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir()
+                || !path
+                    .join(lodestar_ann_store::collection::MANIFEST_FILE)
+                    .is_file()
+            {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if read_lock(&self.inner.collections).contains_key(name) {
+                continue;
+            }
+            match CollectionHandle::open(&self.inner.root, name) {
+                Ok(handle) => {
+                    tracing::info!(
+                        collection = name,
+                        "opened a collection that appeared on disk"
+                    );
+                    write_lock(&self.inner.collections).insert(name.to_string(), Arc::new(handle));
+                    opened += 1;
+                }
+                Err(error) => {
+                    tracing::warn!(collection = name, %error, "skipping a collection that cannot be opened");
+                }
+            }
+        }
+        opened
+    }
+
     /// Registers a newly created collection.
     ///
     /// # Errors

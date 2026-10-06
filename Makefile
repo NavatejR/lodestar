@@ -18,7 +18,9 @@ VENV ?= .venv
 RUST_EXCLUDE ?= --exclude lodestar-ann-py
 
 .DEFAULT_GOAL := help
-.PHONY: help setup build release test test-core test-index test-store test-py lint fmt fmt-check clippy doc wheel venv bench bench-full gate demo docker clean verify
+.PHONY: help setup build release test test-core test-index test-store test-server test-py \
+	lint fmt fmt-check clippy doc wheel venv build-py bench bench-quick bench-full gate \
+	demo docker server clean verify
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -31,8 +33,8 @@ setup: ## Install toolchain components and build everything once
 build: ## Debug build of the workspace
 	$(CARGO) build --workspace $(RUST_EXCLUDE)
 
-release: ## Optimised build of the CLI and server
-	$(CARGO) build --release --bin lodestar
+release: ## Optimised build of the CLI and the server
+	$(CARGO) build --release --bin lodestar --bin lodestar-server
 
 test: ## Run every Rust test suite in the workspace
 	$(CARGO) test --workspace $(RUST_EXCLUDE)
@@ -46,9 +48,17 @@ test-index: ## Run only the index crate tests
 test-store: ## Run only the storage crate tests (includes the crash test)
 	$(CARGO) test -p lodestar-ann-store
 
-test-py: venv ## Build the wheel and run the Python test suite
-	$(VENV)/bin/pip install -q maturin pytest
-	$(VENV)/bin/maturin develop --manifest-path crates/py/Cargo.toml
+test-server: ## Run only the HTTP service tests
+	$(CARGO) test -p lodestar-ann-server
+
+# `--release` matters: a debug extension is an order of magnitude slower, and
+# the benchmark suite measures the engine, not rustc's debug profile.
+build-py: venv ## Build the Python extension into the local virtualenv
+	$(VENV)/bin/pip install -q maturin
+	$(VENV)/bin/maturin develop --release --manifest-path crates/py/Cargo.toml
+
+test-py: build-py ## Build the wheel and run the Python test suite
+	$(VENV)/bin/pip install -q pytest
 	cd python && ../$(VENV)/bin/pytest -q
 
 lint: fmt-check clippy ## Run formatting and lint gates
@@ -71,21 +81,33 @@ wheel: venv ## Build the Python wheel into dist/
 venv: ## Create the local Python virtual environment
 	@test -d $(VENV) || $(PYTHON) -m venv $(VENV)
 
-bench: ## Run the benchmark suite (synthetic + bundled corpus)
-	$(VENV)/bin/python bench/run.py --suite standard
+# Which suite `make bench` runs. CI overrides it on a manual dispatch.
+SUITE ?= standard
 
-bench-full: ## Run the full benchmark suite including downloaded datasets
+bench: build-py ## Run the benchmark suite (override with `make bench SUITE=full`)
+	$(VENV)/bin/python bench/run.py --suite $(SUITE)
+
+bench-full: build-py ## Run the full benchmark suite (200k vectors)
 	$(VENV)/bin/python bench/run.py --suite full
+
+bench-quick: build-py ## Smoke-test the benchmark harness in a few seconds
+	$(VENV)/bin/python bench/run.py --suite quick
 
 gate: ## Recall regression gate used by CI
 	$(CARGO) test --release -p lodestar-ann-index --test recall_gate -- --ignored --nocapture
 
+server: release ## Run the HTTP API locally on http://127.0.0.1:8080
+	$(CARGO) run --release -p lodestar-ann-server -- --root ./data --addr 127.0.0.1:8080
+
 demo: ## Start the Docker demo on http://localhost:8080
-	docker compose up --build
+	docker compose -f demo/docker-compose.yml up --build
+
+docker: ## Build the demo image
+	docker build -f demo/Dockerfile -t lodestar:dev .
 
 clean: ## Remove build and benchmark artefacts
 	$(CARGO) clean
 	rm -rf dist .criterion
 
-verify: lint test gate ## Everything a reviewer should run before merging
+verify: lint test test-py gate ## Everything a reviewer should run before merging
 	@echo "verification complete"

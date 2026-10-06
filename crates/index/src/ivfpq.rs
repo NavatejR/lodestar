@@ -68,7 +68,7 @@ const PQ_SEED: u64 = 0x00B0_0B5E_0000_0001;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IvfPqConfig {
     /// Number of coarse centroids, at most
-    /// [`MAX_CENTROIDS`](lodestar_ann_core::pq::MAX_CENTROIDS).
+    /// [`MAX_CENTROIDS`].
     ///
     /// The literature calls this `nlist`. As a rule of thumb it should be
     /// between `sqrt(n)` and `16 * sqrt(n)` for `n` vectors.

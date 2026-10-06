@@ -1,0 +1,99 @@
+{
+  "suite": "quick",
+  "environment": {
+    "timestamp": "2026-10-06T06:24:30+00:00",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_count": 6,
+    "python": "3.11.16",
+    "numpy": "2.4.6",
+    "lodestar": "0.1.0",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)"
+  },
+  "index": {
+    "vectors": 10000,
+    "dim": 64,
+    "queries": 200,
+    "metric": "l2",
+    "graph": {
+      "m": 16,
+      "m0": 32,
+      "ef_construction": 200
+    },
+    "build_seconds": 8.984665208001388,
+    "build_vectors_per_second": 1113.00752654583,
+    "oracle_seconds": 0.025569292018190026,
+    "memory_bytes": 4047652,
+    "bytes_per_vector": 404.7652,
+    "sweep": [
+      {
+        "ef_search": 16,
+        "recall_at_10": 0.963,
+        "qps_single_thread": 8255.67835647587,
+        "mean_ms": 0.12092335062334314,
+        "p50_ms": 0.11766600073315203,
+        "p95_ms": 0.13745800242759287,
+        "p99_ms": 0.1541250094305724,
+        "max_ms": 0.7660420087631792
+      },
+      {
+        "ef_search": 32,
+        "recall_at_10": 0.9955,
+        "qps_single_thread": 6145.730573981605,
+        "mean_ms": 0.1625841314671561,
+        "p50_ms": 0.16245798906311393,
+        "p95_ms": 0.18675002502277493,
+        "p99_ms": 0.19370901281945407,
+        "max_ms": 0.20750000840052962
+      },
+      {
+        "ef_search": 64,
+        "recall_at_10": 1.0,
+        "qps_single_thread": 4281.2151259330485,
+        "mean_ms": 0.2334529350628145,
+        "p50_ms": 0.23341597989201546,
+        "p95_ms": 0.2692500129342079,
+        "p99_ms": 0.28733297949656844,
+        "max_ms": 0.3049160004593432
+      },
+      {
+        "ef_search": 128,
+        "recall_at_10": 1.0,
+        "qps_single_thread": 2883.7315618808097,
+        "mean_ms": 0.346633329463657,
+        "p50_ms": 0.3451660159043968,
+        "p95_ms": 0.4019579791929573,
+        "p99_ms": 0.41991600301116705,
+        "max_ms": 0.43349998304620385
+      },
+      {
+        "ef_search": 256,
+        "recall_at_10": 1.0,
+        "qps_single_thread": 1220.7540369667254,
+        "mean_ms": 0.8190360690059606,
+        "p50_ms": 0.8167499909177423,
+        "p95_ms": 0.951208989135921,
+        "p99_ms": 1.0402499756310135,
+        "max_ms": 1.0727090120781213
+      }
+    ],
+    "throughput": {
+      "threads": 6,
+      "ef_search": 256,
+      "queries": 198,
+      "seconds": 0.05046570798731409,
+      "qps": 3923.4563012525778
+    }
+  },
+  "durability": {
+    "vectors": 10000,
+    "dim": 64,
+    "insert_seconds": 8.962917333003134,
+    "insert_vectors_per_second": 1115.7081593487574,
+    "flush_seconds": 8.961081165994983,
+    "verify_seconds": 0.004785375000210479,
+    "open_seconds": 0.0022651250183116645,
+    "first_search_seconds": 0.00029212498338893056
+  }
+}

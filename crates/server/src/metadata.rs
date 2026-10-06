@@ -23,7 +23,7 @@
 //!   on open and the file is rewritten, so the log is always complete and
 //!   parseable;
 //! * anything *before* a torn tail that fails to parse is
-//!   [`Error::Corrupt`](lodestar_ann_store::Error::Corrupt), never a panic;
+//!   [`Error::Corrupt`], never a panic;
 //! * `flush` and `compact` call [`MetadataStore::sync`] before sealing vectors,
 //!   so a segment is never durable while the metadata describing it is not;
 //! * the log is rewritten atomically (temp file, `fsync`, rename, directory

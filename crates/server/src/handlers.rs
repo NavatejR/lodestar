@@ -8,7 +8,7 @@
 //! Everything that touches a collection runs on the blocking pool. The engine
 //! is synchronous — it maps files, walks a graph and computes distances — so
 //! calling it from an async worker would stall every other task scheduled on
-//! that worker for the duration of the search. [`blocking`] moves the work to
+//! that worker for the duration of the search. `blocking` moves the work to
 //! the pool the runtime keeps for exactly this, and the handler awaits the
 //! result.
 
@@ -126,15 +126,27 @@ pub async fn not_found() -> ApiError {
 }
 
 /// `GET /v1/index` — every collection, sorted by name.
+///
+/// Listing is also when collections created by the CLI or the Python bindings
+/// while this service was running become visible: the root is re-scanned and
+/// anything new is opened.
 pub async fn list_indexes(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<IndexSummary>>, ApiError> {
     let summaries = blocking({
         let state = state.clone();
-        move || Ok(state.summaries())
+        move || {
+            state.refresh();
+            Ok(state.summaries())
+        }
     })
     .await?;
     Ok(Json(summaries))
+}
+
+/// `GET /demo` — a small console over this API, compiled into the binary.
+pub async fn demo_page() -> Html<&'static str> {
+    Html(include_str!("demo.html"))
 }
 
 /// `PUT /v1/index/{name}` — create a collection.
