@@ -182,27 +182,34 @@ unsafe fn l2_squared_avx2_impl(a: &[f32], b: &[f32]) -> f32 {
     use core::arch::x86_64::{
         _mm256_fmadd_ps, _mm256_loadu_ps, _mm256_setzero_ps, _mm256_storeu_ps, _mm256_sub_ps,
     };
-    let n = a.len().min(b.len());
-    let chunks = n / 8;
-    let ap = a.as_ptr();
-    let bp = b.as_ptr();
-    let mut acc = _mm256_setzero_ps();
-    for i in 0..chunks {
-        let va = _mm256_loadu_ps(ap.add(i * 8));
-        let vb = _mm256_loadu_ps(bp.add(i * 8));
-        let d = _mm256_sub_ps(va, vb);
-        acc = _mm256_fmadd_ps(d, d, acc);
+    // SAFETY: edition 2024 requires explicit unsafe blocks even inside an
+    // `unsafe fn`. Everything here is safe under the function's documented
+    // contract: the caller guaranteed AVX2 + FMA support, and every pointer
+    // offset stays below `chunks * 8 <= n`, which is bounded by both slice
+    // lengths.
+    unsafe {
+        let n = a.len().min(b.len());
+        let chunks = n / 8;
+        let ap = a.as_ptr();
+        let bp = b.as_ptr();
+        let mut acc = _mm256_setzero_ps();
+        for i in 0..chunks {
+            let va = _mm256_loadu_ps(ap.add(i * 8));
+            let vb = _mm256_loadu_ps(bp.add(i * 8));
+            let d = _mm256_sub_ps(va, vb);
+            acc = _mm256_fmadd_ps(d, d, acc);
+        }
+        // Horizontal sum via memory: simpler than a shuffle chain and the epilogue
+        // runs once per query, not per dimension.
+        let mut lanes = [0.0f32; 8];
+        _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
+        let mut sum: f32 = lanes.iter().sum();
+        for i in (chunks * 8)..n {
+            let d = a[i] - b[i];
+            sum += d * d;
+        }
+        sum
     }
-    // Horizontal sum via memory: simpler than a shuffle chain and the epilogue
-    // runs once per query, not per dimension.
-    let mut lanes = [0.0f32; 8];
-    _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
-    let mut sum: f32 = lanes.iter().sum();
-    for i in (chunks * 8)..n {
-        let d = a[i] - b[i];
-        sum += d * d;
-    }
-    sum
 }
 
 /// Inner product using AVX2 and FMA.
@@ -216,23 +223,28 @@ unsafe fn inner_product_avx2_impl(a: &[f32], b: &[f32]) -> f32 {
     use core::arch::x86_64::{
         _mm256_fmadd_ps, _mm256_loadu_ps, _mm256_setzero_ps, _mm256_storeu_ps,
     };
-    let n = a.len().min(b.len());
-    let chunks = n / 8;
-    let ap = a.as_ptr();
-    let bp = b.as_ptr();
-    let mut acc = _mm256_setzero_ps();
-    for i in 0..chunks {
-        let va = _mm256_loadu_ps(ap.add(i * 8));
-        let vb = _mm256_loadu_ps(bp.add(i * 8));
-        acc = _mm256_fmadd_ps(va, vb, acc);
+    // SAFETY: edition 2024 requires explicit unsafe blocks even inside an
+    // `unsafe fn`. Same contract as the L2 kernel above: AVX2 + FMA
+    // guaranteed by the caller, every offset in bounds.
+    unsafe {
+        let n = a.len().min(b.len());
+        let chunks = n / 8;
+        let ap = a.as_ptr();
+        let bp = b.as_ptr();
+        let mut acc = _mm256_setzero_ps();
+        for i in 0..chunks {
+            let va = _mm256_loadu_ps(ap.add(i * 8));
+            let vb = _mm256_loadu_ps(bp.add(i * 8));
+            acc = _mm256_fmadd_ps(va, vb, acc);
+        }
+        let mut lanes = [0.0f32; 8];
+        _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
+        let mut sum: f32 = lanes.iter().sum();
+        for i in (chunks * 8)..n {
+            sum += a[i] * b[i];
+        }
+        sum
     }
-    let mut lanes = [0.0f32; 8];
-    _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
-    let mut sum: f32 = lanes.iter().sum();
-    for i in (chunks * 8)..n {
-        sum += a[i] * b[i];
-    }
-    sum
 }
 
 /// Safe wrapper around the AVX2 L2 kernel, used as a `fn` pointer.
