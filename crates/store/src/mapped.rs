@@ -1,7 +1,7 @@
 //! Read-only, memory-mapped segments.
 //!
 //! A [`Segment`] maps a segment file and implements
-//! [`GraphView`](lodestar_ann_index::graph::GraphView) over it. Search then runs
+//! [`GraphView`] over it. Search then runs
 //! the *same* traversal code as the in-memory index — `graph::search_with_scratch`
 //! is generic over the view — so a recall figure measured while building applies
 //! to the served index, and there is no second implementation of the search loop
@@ -236,7 +236,14 @@ impl Segment {
             // A corrupt directory entry must be rejected before the offsets it
             // names are used to index the link list below.
             end_of(entry.offsets_at, (nodes as u64 + 1) * 4, "offsets block")?;
-            end_of(entry.links_at, entry.links * 4, "links block")?;
+            // The link count is read straight from the directory, which unlike
+            // the header has no checksum at `open` time — so the byte count it
+            // implies has to be computed without trusting it not to overflow.
+            let links_bytes = entry
+                .links
+                .checked_mul(4)
+                .ok_or_else(|| Error::corrupt("segment adjacency", "links block overflows"))?;
+            end_of(entry.links_at, links_bytes, "links block")?;
             let offsets = self.offsets(level)?;
             let links = self.links(level)?;
             if offsets.len() != nodes + 1 {
@@ -567,7 +574,13 @@ impl Segment {
             Error::corrupt("segment directory", format!("no entry for level {level}"))
         })?;
         let start = entry.links_at as usize;
-        let bytes = entry.links as usize * 4;
+        let bytes = usize::try_from(
+            entry
+                .links
+                .checked_mul(4)
+                .ok_or_else(|| Error::corrupt("segment adjacency", "links block overflows"))?,
+        )
+        .map_err(|_| Error::corrupt("segment adjacency", "links block overflows"))?;
         let slice = self
             .map
             .get(
