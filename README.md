@@ -1,9 +1,23 @@
+<div align="center">
+
 # Lodestar
 
-**A vector search engine written from scratch in Rust.** Graph and
-inverted-file indexes, quantization, a crash-safe storage engine, a
+**A vector search engine written from scratch in Rust.**
+
+Graph and inverted-file indexes, quantization, a crash-safe storage engine, a
 write-ahead log, an HTTP API, Python bindings and a CLI — no search library
 underneath, only `std`, `axum`, `serde`, `pyo3` and `numpy`.
+
+[![CI](https://github.com/NavatejR/lodestar/actions/workflows/ci.yml/badge.svg)](https://github.com/NavatejR/lodestar/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/lodestar-ann-core.svg)](https://crates.io/crates/lodestar-ann-core)
+[![PyPI](https://img.shields.io/pypi/v/lodestar-ann-py.svg)](https://pypi.org/project/lodestar-ann-py/)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+
+[Quick start](#quick-start) · [New to vector search?](GETTING_STARTED.md) · [Benchmarks](BENCHMARKS.md) · [Docs](docs/ARCHITECTURE.md) · [Demo](#one-command-demo)
+
+</div>
+
+---
 
 Everything runs on your machine. Embeddings come from a local model or from
 your own generator; the demo runs in a container with nothing leaving it.
@@ -20,10 +34,15 @@ make demo                    # http://localhost:8080/demo
 | **Metrics** | L2, cosine, inner product — each with NEON / AVX2+FMA / scalar dispatch |
 | **Storage** | immutable memory-mapped segments, a write-ahead log, a manifest, CRC32 throughout |
 | **Durability** | SIGKILL-consistent: acknowledged writes survive, torn tails are truncated, `verify` re-checks every byte |
-| **Surfaces** | `lodestar` CLI · `lodestar-server` HTTP API · `pip`-installable Python package |
+| **Surfaces** | `lodestar` CLI · `lodestar-server` HTTP API · typed Python package |
 | **Quality** | recall gate in CI, property tests, a crash test that kills the process at random points, fuzzed parsers |
 
 ## Quick start
+
+> **Never used a vector database?** Start with
+> **[GETTING_STARTED.md](GETTING_STARTED.md)** — a beginner's guide that
+> explains what vector search is and walks through your first index in five
+> minutes.
 
 ### Python
 
@@ -143,6 +162,7 @@ bench/           the benchmark harness behind `make bench`
 benchmarks/      committed benchmark reports (JSON + Markdown)
 demo/            Dockerfile, compose file, bundled corpus
 docs/            architecture, algorithms, operations, ADRs
+fuzz/            cargo-fuzz targets for the on-disk parsers
 ```
 
 ## Development
@@ -170,6 +190,14 @@ The test story is deliberate rather than decorative:
   writes and then asserts every acknowledged write is still there;
 * **server integration tests** over a real `axum` router, and a pytest suite
   over the real extension module.
+
+## One-command demo
+
+If you have Docker, `make demo` builds a 165 MB image, seeds a synthetic
+20,000-vector corpus through the CLI (idempotently — restarts add nothing)
+and serves the API plus the web console on `:8080`. An optional compose
+profile embeds a bundled text corpus with a local Ollama model, so the demo
+can search *real* sentences without anything leaving your machine.
 
 ## Status
 

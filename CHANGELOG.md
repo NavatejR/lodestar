@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `GETTING_STARTED.md`, a beginner's guide: what vector search is, and a
+  copy-pasteable first index through the CLI, Python and the HTTP console.
+- GitHub repository hygiene: CI/recall/MSRV/Python/fuzz workflows, a release
+  pipeline (crates, PyPI trusted publishing, GHCR image on `v*` tags),
+  Dependabot, issue and PR templates.
+
+### Changed
+
+- README restructured with badges and a documentation map.
+
 ### Fixed
 
 - `Segment::open` no longer panics with an overflow when the level directory
