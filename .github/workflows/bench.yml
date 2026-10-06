@@ -27,11 +27,11 @@ jobs:
     name: bench (${{ inputs.suite || 'standard' }})
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.99.0"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: Swatinem/rust-cache@v2
@@ -43,7 +43,7 @@ jobs:
         run: |
           latest=$(ls -t benchmarks/results/*.md | head -1)
           cat "$latest" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: benchmarks/results/*
