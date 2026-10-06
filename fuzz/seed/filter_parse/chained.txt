@@ -1,0 +1,1 @@
+x >= 1 AND y <= 2 AND z > 3 AND w < 4

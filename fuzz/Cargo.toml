@@ -1,0 +1,44 @@
+# The fuzzing crate, built by `cargo +nightly fuzz build`.
+#
+# It sits inside the repository but outside the cargo workspace (note the
+# `[workspace]` table below), so `cargo build --workspace`, clippy and the
+# tests never see it — fuzz targets need nightly for `-Zsanitizer`, and CI's
+# MSRV check promises 1.85 for the shipped crates only.
+
+[package]
+name = "lodestar-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+lodestar-ann-index = { path = "../crates/index" }
+lodestar-ann-store = { path = "../crates/store" }
+
+[[bin]]
+name = "segment_open"
+path = "fuzz_targets/segment_open.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wal_replay"
+path = "fuzz_targets/wal_replay.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "filter_parse"
+path = "fuzz_targets/filter_parse.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
+members = []

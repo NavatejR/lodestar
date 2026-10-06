@@ -1,0 +1,121 @@
+# Continuous integration.
+#
+# The jobs mirror `make verify` exactly — the point of the Makefile is that a
+# reviewer and CI run the same commands — with two additions: an MSRV check,
+# and a macOS run, because half the distance kernels are selected at runtime
+# and a green Linux build proves nothing about NEON.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: fmt, clippy, docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          # Pinned rather than `stable`: a toolchain bump is a change that
+          # should land as a reviewed commit, not as a red build.
+          toolchain: "1.99.0"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy (warnings denied)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Docs (warnings denied)
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@v2
+      - name: Workspace tests
+        run: make test
+
+  recall-gate:
+    name: recall gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+      # Release profile, on purpose: recall is a property of the algorithm,
+      # but the debug profile is ~20x slower and the gate has 20k vectors.
+      - name: Gate
+        run: make gate
+
+  python:
+    name: python ${{ matrix.python }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Bindings and suite
+        run: make test-py
+
+  msrv:
+    name: MSRV (1.85)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.85.0"
+      - uses: Swatinem/rust-cache@v2
+      # `check`, not `test`: MSRV is a promise about compiling, not about the
+      # test runner's dependencies.
+      - name: Check
+        run: cargo check --workspace --exclude lodestar-ann-py --all-targets
+
+  fuzz-smoke:
+    name: fuzz targets build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@cargo-fuzz
+      # `+nightly` matters: rust-toolchain.toml pins stable, and cargo-fuzz
+      # needs nightly. The env var rustup sets is inherited by the inner cargo,
+      # so the whole build stays on nightly.
+      - name: Build
+        run: cargo +nightly fuzz build

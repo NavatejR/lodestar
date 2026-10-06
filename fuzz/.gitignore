@@ -1,0 +1,5 @@
+# cargo-fuzz working directories: corpora and crash artifacts are rebuilt
+# locally, never committed.
+target
+corpus
+artifacts

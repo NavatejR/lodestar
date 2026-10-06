@@ -1,0 +1,50 @@
+# Nightly benchmarking.
+#
+# Recall is gated in CI (see ci.yml); latency is not, because a shared runner's
+# timing is noise. What this workflow does instead is run the harness on a
+# schedule, publish the report to the job summary, and keep the raw JSON as an
+# artifact — so a regression shows up as a trend a human can look at, rather
+# than as a red build nobody can defend.
+
+name: Benchmarks
+
+on:
+  schedule:
+    - cron: "17 4 * * 1" # Mondays, 04:17 UTC
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Suite to run
+        type: choice
+        options: [quick, standard, full]
+        default: standard
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    name: bench (${{ inputs.suite || 'standard' }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+      - name: Run
+        run: make bench SUITE=${{ inputs.suite || 'standard' }}
+      - name: Report
+        run: |
+          latest=$(ls -t benchmarks/results/*.md | head -1)
+          cat "$latest" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmarks/results/*
+          retention-days: 90

@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in Lodestar misbehaved — a crash, wrong results, or a build failure.
+title: "[bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The observed behaviour and why it is wrong. Wrong search results count — say what you expected instead.
+      placeholder: Searching for the exact vector that was just inserted returns a different id.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce it
+      description: The smallest sequence of commands or code that shows the problem. A reproduction beats a hundred descriptions.
+      placeholder: |
+        lodestar init demo --dim 8
+        lodestar upsert demo --ids 0 --vectors "1,0,0,..."
+        lodestar search demo --vector "1,0,0,..." --k 1
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `lodestar --version`, or the commit hash.
+      placeholder: lodestar 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS, architecture, and anything unusual about the machine.
+      placeholder: macOS 26 / arm64
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, metrics, or core files
+      description: Stack traces, `lodestar verify` output, or `/metrics` counters at the time of failure.
+    validations:
+      required: false

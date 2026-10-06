@@ -1,0 +1,30 @@
+# Automated dependency update PRs, one grouped PR per ecosystem so a weekly
+# run produces reviewable changes instead of a firehose. The toolchain itself
+# is deliberately *not* here: ci.yml pins rustc to an exact version because a
+# bump is a reviewed commit, not a bot PR.
+
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      rust-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: monthly
+    groups:
+      python-build:
+        patterns: ["*"]

@@ -1,0 +1,120 @@
+# Publishes a release from a `v*` tag: the crates in dependency order, the
+# abi3 wheel, and the container image.
+#
+# One-time setup this workflow cannot do for itself:
+#   * `CARGO_REGISTRY_TOKEN` as a repository secret — a crates.io API token
+#     with publish scope for this repository.
+#   * a PyPI trusted publisher for `lodestar-ann-py` aimed at this workflow;
+#     that is what `id-token: write` is for, so no PyPI password lives here.
+#   * GHCR needs nothing: the image push uses the job's own GITHUB_TOKEN.
+#
+# Tests are not re-run here. Tags are cut from `main`, where CI already ran
+# green; publishing from a tag nobody built is a process failure, not a
+# workflow one.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  crates:
+    name: crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - name: Tag must match the crate version
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "lodestar-ann-core") | .version')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match version $version" >&2
+            exit 1
+          fi
+      # Dependency order is mandatory: crates.io rejects a publish whose
+      # dependencies are not on the index yet, and the index takes a moment to
+      # notice each upload — hence the retries rather than one straight run.
+      - name: Publish in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          publish() {
+            for attempt in 1 2 3 4 5; do
+              if cargo publish -p "$1"; then return 0; fi
+              echo "$1 was not accepted (attempt $attempt); waiting for the index"
+              sleep 20
+            done
+            return 1
+          }
+          set -e
+          for crate in \
+            lodestar-ann-core \
+            lodestar-ann-index \
+            lodestar-ann-store \
+            lodestar-ann-cli \
+            lodestar-ann-server \
+            lodestar-ann-py; do
+            publish "$crate"
+          done
+
+  wheel:
+    name: PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # trusted publishing: the OIDC assertion is the credential
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+      - name: Build the abi3 wheel
+        run: |
+          pip install maturin
+          maturin build --release --manifest-path crates/py/Cargo.toml --out dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+
+  image:
+    name: GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Hard-coded lowercase: GHCR rejects `NavatejR/lodestar`, and image
+      # names are not lowered by expressions.
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/navatejr/lodestar
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: demo/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

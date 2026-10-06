@@ -1,0 +1,1 @@
+category == "news" AND score >= 0.8 OR NOT archived

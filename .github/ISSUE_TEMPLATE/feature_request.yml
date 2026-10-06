@@ -1,0 +1,36 @@
+name: Feature request
+description: Propose a capability, algorithm, or operational improvement.
+title: "[feat] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that Lodestar cannot do today? Concrete workloads beat abstractions.
+      placeholder: I need to filter on a field *and* guarantee the filter is applied before ef is exhausted...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you imagine it working — an API, a CLI flag, an algorithm, a config knob.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What you do instead today, and why it falls short.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: willingness
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a pull request for this.
